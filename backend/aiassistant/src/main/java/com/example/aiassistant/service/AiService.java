@@ -9,7 +9,6 @@ import java.util.*;
 @Service
 public class AiService {
 
-    // ✅ Use Gemini API Key
     private final String API_KEY = System.getenv("GEMINI_API_KEY");
 
     private List<String> conversationMemory = new ArrayList<>();
@@ -25,24 +24,21 @@ public class AiService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // Add user message to memory
             conversationMemory.add("User: " + userMessage);
 
-            // Keep last 5 messages
             if (conversationMemory.size() > 5) {
                 conversationMemory.remove(0);
             }
 
-            // Combine memory into single prompt
-            StringBuilder promptBuilder = new StringBuilder();
+            StringBuilder prompt = new StringBuilder();
             for (String msg : conversationMemory) {
-                promptBuilder.append(msg).append("\n");
+                prompt.append(msg).append("\n");
             }
 
             Map<String, Object> body = new HashMap<>();
             body.put("contents", List.of(
                     Map.of("parts", List.of(
-                            Map.of("text", promptBuilder.toString())
+                            Map.of("text", prompt.toString())
                     ))
             ));
 
@@ -75,7 +71,6 @@ public class AiService {
 
             String aiReply = parts.get(0).get("text").toString();
 
-            // Add AI response to memory
             conversationMemory.add("AI: " + aiReply);
 
             return aiReply;
