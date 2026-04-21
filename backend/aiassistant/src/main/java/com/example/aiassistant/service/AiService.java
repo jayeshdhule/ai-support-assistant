@@ -3,51 +3,86 @@ package com.example.aiassistant.service;
 import org.springframework.stereotype.Service;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
-import java.util.*;
 
+import java.util.*;
 
 @Service
 public class AiService {
 
-    private final String API_KEY = "YOUR_API_KEY";
+    // ✅ Use Gemini API Key
+    private final String API_KEY = System.getenv("GEMINI_API_KEY");
 
-    private List<Map<String, String>> conversationMemory = new ArrayList<>();
+    private List<String> conversationMemory = new ArrayList<>();
 
+    @SuppressWarnings("unchecked")
     public String getResponse(String userMessage, String sessionId) {
 
-        RestTemplate restTemplate = new RestTemplate();
+        try {
+            RestTemplate restTemplate = new RestTemplate();
 
-        String url = "https://api.openai.com/v1/chat/completions";
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + API_KEY;
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(API_KEY);
-        headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-        // Add user message to memory
-        conversationMemory.add(Map.of("role", "user", "content", userMessage));
+            // Add user message to memory
+            conversationMemory.add("User: " + userMessage);
 
-        // Keep only last 5 messages (context window)
-        if (conversationMemory.size() > 5) {
-            conversationMemory.remove(0);
+            // Keep last 5 messages
+            if (conversationMemory.size() > 5) {
+                conversationMemory.remove(0);
+            }
+
+            // Combine memory into single prompt
+            StringBuilder promptBuilder = new StringBuilder();
+            for (String msg : conversationMemory) {
+                promptBuilder.append(msg).append("\n");
+            }
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("contents", List.of(
+                    Map.of("parts", List.of(
+                            Map.of("text", promptBuilder.toString())
+                    ))
+            ));
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<Map> response =
+                    restTemplate.postForEntity(url, request, Map.class);
+
+            System.out.println("API RESPONSE: " + response.getBody());
+
+            Map<String, Object> responseBody =
+                    (Map<String, Object>) response.getBody();
+
+            if (responseBody == null || responseBody.containsKey("error")) {
+                return "Error from Gemini API: " + responseBody;
+            }
+
+            List<Map<String, Object>> candidates =
+                    (List<Map<String, Object>>) responseBody.get("candidates");
+
+            if (candidates == null || candidates.isEmpty()) {
+                return "No response from AI";
+            }
+
+            Map<String, Object> content =
+                    (Map<String, Object>) candidates.get(0).get("content");
+
+            List<Map<String, Object>> parts =
+                    (List<Map<String, Object>>) content.get("parts");
+
+            String aiReply = parts.get(0).get("text").toString();
+
+            // Add AI response to memory
+            conversationMemory.add("AI: " + aiReply);
+
+            return aiReply;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "Server error: " + e.getMessage();
         }
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", "gpt-4o-mini");
-        body.put("messages", conversationMemory);
-
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-
-        ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
-
-        List choices = (List) response.getBody().get("choices");
-        Map choice = (Map) choices.get(0);
-        Map messageObj = (Map) choice.get("message");
-
-        String aiReply = messageObj.get("content").toString();
-
-        // Add AI response to memory
-        conversationMemory.add(Map.of("role", "assistant", "content", aiReply));
-
-        return aiReply;
     }
 }
