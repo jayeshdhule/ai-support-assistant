@@ -9,7 +9,8 @@ import java.util.*;
 @Service
 public class AiService {
 
-    private final String API_KEY = System.getenv("GEMINI_API_KEY");
+    // ✅ TEMP: Hardcoded key (for testing)
+    private final String API_KEY = "AIzaSyDPnn4wcL75sLNOMslRzwHtEJaTOnz-SnU";
 
     private List<String> conversationMemory = new ArrayList<>();
 
@@ -17,24 +18,31 @@ public class AiService {
     public String getResponse(String userMessage, String sessionId) {
 
         try {
+            // 🔍 Debug
+            System.out.println("API KEY: " + API_KEY);
+
             RestTemplate restTemplate = new RestTemplate();
 
-            String url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + API_KEY;
-            
+            // ✅ Correct endpoint + model
+            String url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
+            // 🧠 Add user message
             conversationMemory.add("User: " + userMessage);
 
             if (conversationMemory.size() > 5) {
                 conversationMemory.remove(0);
             }
 
+            // 🧠 Build prompt
             StringBuilder prompt = new StringBuilder();
             for (String msg : conversationMemory) {
                 prompt.append(msg).append("\n");
             }
 
+            // 📦 Request body
             Map<String, Object> body = new HashMap<>();
             body.put("contents", List.of(
                     Map.of("parts", List.of(
@@ -42,8 +50,10 @@ public class AiService {
                     ))
             ));
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+            HttpEntity<Map<String, Object>> request =
+                    new HttpEntity<>(body, headers);
 
+            // 🔥 API call
             ResponseEntity<Map> response =
                     restTemplate.postForEntity(url, request, Map.class);
 
@@ -52,8 +62,9 @@ public class AiService {
             Map<String, Object> responseBody =
                     (Map<String, Object>) response.getBody();
 
+            // ❌ Handle API error
             if (responseBody == null || responseBody.containsKey("error")) {
-                return "Error from Gemini API: " + responseBody;
+                return "Demo Response: API error or quota exceeded";
             }
 
             List<Map<String, Object>> candidates =
@@ -71,13 +82,16 @@ public class AiService {
 
             String aiReply = parts.get(0).get("text").toString();
 
+            // 🧠 Save AI reply
             conversationMemory.add("AI: " + aiReply);
 
             return aiReply;
 
         } catch (Exception e) {
             e.printStackTrace();
-            return "Server error: " + e.getMessage();
+
+            // 🔥 fallback (never break app)
+            return "Demo Response: Server error fallback";
         }
     }
 }
